@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口译练习 · 录音转写与评价</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .serif { font-family: "Source Han Serif SC", "Noto Serif SC", "SimSun", serif; }
+  textarea { resize: vertical; }
+  .fade-in { animation: fade .4s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none;} }
+  .pulse-dot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1;} 50% { opacity: .25;} }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-800 min-h-screen">
+
+<header class="border-b border-slate-200 bg-white">
+  <div class="max-w-6xl mx-auto px-4 py-5 flex flex-wrap items-center gap-3 justify-between">
+    <div>
+      <h1 class="serif text-xl font-semibold tracking-wide text-slate-900">口译练习 · 录音转写与评价</h1>
+      <p class="text-sm text-slate-500 mt-1">原文录入 → 学生口译录音 → 实时逐字转写 → 本地大模型按量规评价</p>
+    </div>
+    <div class="flex gap-2 text-xs">
+      <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">纯浏览器运行</span>
+      <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">无需安装软件</span>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">不消耗 token</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- 设置栏 -->
+  <section class="bg-white border border-slate-200 rounded-xl p-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <label class="block">
+        <span class="text-xs text-slate-500">源语（原文语言）</span>
+        <select id="srcLang" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="en">英语</option>
+          <option value="zh">中文</option>
+          <option value="other">其他</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">译入语（录音识别与评价语言）</span>
+        <select id="tgtLang" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="zh">中文（普通话）</option>
+          <option value="en">英语</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">评价模型（首次使用自动下载并缓存）</span>
+        <select id="modelId" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5 1.5B · 约1GB · 均衡（推荐）</option>
+          <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约0.5GB · 最快</option>
+          <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen2.5 3B · 约2GB · 更准</option>
+          <option value="Qwen2.5-7B-Instruct-q4f16_1-MLC">Qwen2.5 7B · 约4.5GB · 需较好显卡</option>
+        </select>
+      </label>
+      <div>
+        <span class="text-xs text-slate-500">模型状态</span>
+        <div id="modelStatus" class="mt-1 text-sm px-3 py-2 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">未加载</div>
+      </div>
+    </div>
+    <div id="modelProgressWrap" class="hidden mt-3">
+      <div class="flex justify-between text-xs text-slate-500 mb-1"><span id="modelProgressText">准备中…</span><span id="modelProgressPct"></span></div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="modelProgressBar" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%"></div></div>
+      <p class="text-xs text-slate-400 mt-1">首次下载约需几分钟，之后浏览器会缓存，下次打开无需重复下载。建议课前在此电脑上先点一次「生成评价」完成预热。</p>
+    </div>
+    <div id="webgpuWarning" class="hidden mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+      当前浏览器不支持 WebGPU，无法运行评价模型。录音与转写不受影响；请在电脑端使用 Chrome 或 Edge 浏览器进行评价。
+    </div>
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- 第一步：原文 -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">①</span>原文本</h2>
+        <span class="text-xs text-slate-400" id="srcCount">0 字</span>
+      </div>
+      <textarea id="srcText" rows="12" placeholder="把口译练习的原文（讲稿、素材）粘贴到这里……"
+        class="w-full flex-1 min-h-[220px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+    </section>
+
+    <!-- 第二步：录音转写 -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">②</span>口译录音与实时转写</h2>
+        <span class="text-xs text-slate-400" id="asrStat">尚未录音</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <button id="recBtn" class="px-5 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition">开始录音</button>
+        <span id="recTimer" class="text-sm text-slate-500 tabular-nums">00:00</span>
+        <span id="recState" class="text-sm hidden text-rose-600"><span class="inline-block w-2 h-2 rounded-full bg-rose-600 mr-1 pulse-dot align-middle"></span>录音中</span>
+      </div>
+      <div id="transcriptBox" class="flex-1 min-h-[180px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed overflow-y-auto bg-stone-50">
+        <span id="finalTranscript" class="whitespace-pre-wrap"></span><span id="interimTranscript" class="text-slate-400 whitespace-pre-wrap"></span>
+        <p id="transcriptHint" class="text-slate-300">点击「开始录音」后，学生开始口译，译文会实时出现在这里。</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 mt-3">
+        <button id="clearAsrBtn" class="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">清空转写</button>
+        <span class="text-xs text-slate-400" id="tgtCount">0 字</span>
+        <div id="audioWrap" class="hidden flex-1 min-w-[220px] flex items-center gap-2">
+          <audio id="audioPlayer" controls class="h-8 flex-1"></audio>
+          <a id="audioDownload" class="text-xs text-indigo-600 hover:text-indigo-800 underline underline-offset-2" download="interpretation.webm">保存录音</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 第三步：评价 -->
+  <section class="bg-white border border-slate-200 rounded-xl p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">③</span>大模型评价</h2>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-slate-400">模型在本设备浏览器内运行，数据不出本机</span>
+        <button id="evalBtn" class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-40 disabled:cursor-not-allowed">生成评价</button>
+      </div>
+    </div>
+    <div id="evalOutput" class="min-h-[120px] border border-slate-200 rounded-lg px-5 py-4 text-sm leading-7 bg-stone-50 text-slate-700">
+      <p class="text-slate-300">评价结果将显示在这里。点击「生成评价」后，首次会先下载模型（见上方进度条），然后流式生成评语。</p>
+    </div>
+    <div class="flex items-center gap-4 mt-3">
+      <button id="copyEvalBtn" class="hidden text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">复制评价</button>
+      <span id="evalMeta" class="text-xs text-slate-400"></span>
+    </div>
+  </section>
+
+  <details class="bg-white border border-slate-200 rounded-xl p-5 text-sm text-slate-600">
+    <summary class="cursor-pointer font-medium text-slate-800">使用说明与注意事项</summary>
+    <ul class="list-disc pl-5 mt-3 space-y-1.5 leading-6">
+      <li>建议使用 Chrome 或 Edge 浏览器；手机端可录音转写，但大模型评价需要 WebGPU，目前仅部分电脑浏览器支持。</li>
+      <li>录音前请允许浏览器使用麦克风；语音识别需联网（走浏览器自带引擎，不耗 token）。</li>
+      <li>评价模型首次使用会自动下载到浏览器缓存（大小见模型选项），之后离线也能评价。</li>
+      <li>口译时长建议控制在每段 2–3 分钟以内，转写效果更稳定；长时间录音若转写自动暂停，点「开始录音」可继续，转写内容不会丢失。</li>
+      <li>本页面所有数据（原文、录音、转写、评价）只存在于当前浏览器中，刷新页面前请注意保存需要的内容。</li>
+    </ul>
+  </details>
+
+  <footer class="text-center text-xs text-slate-400 pb-6">口译教学工具 · 单文件网页 · Web Speech API + WebLLM 本地运行</footer>
+</main>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const srcText = $('srcText'), srcCount = $('srcCount'), tgtCount = $('tgtCount');
+const recBtn = $('recBtn'), recTimer = $('recTimer'), recState = $('recState'), asrStat = $('asrStat');
+const finalEl = $('finalTranscript'), interimEl = $('interimTranscript'), transcriptHint = $('transcriptHint');
+const evalBtn = $('evalBtn'), evalOutput = $('evalOutput'), evalMeta = $('evalMeta'), copyEvalBtn = $('copyEvalBtn');
+
+let recording = false, finalText = '', interimText = '', timerInt = null, seconds = 0;
+let recognition = null, mediaRecorder = null, audioChunks = [];
+
+/* ---------- 设置持久化 ---------- */
+const srcLangSel = $('srcLang'), tgtLangSel = $('tgtLang'), modelSel = $('modelId');
+for (const [el, key] of [[srcLangSel,'it_srcLang'],[tgtLangSel,'it_tgtLang'],[modelSel,'it_model']]) {
+  const v = localStorage.getItem(key);
+  if (v) el.value = v;
+  el.addEventListener('change', () => { localStorage.setItem(key, el.value); if (el === modelSel) resetEngine(); });
+}
+const langName = { zh: '中文', en: '英语', other: '其他语言' };
+const asrLangCode = () => tgtLangSel.value === 'en' ? 'en-US' : 'zh-CN';
+
+/* ---------- 字数统计 ---------- */
+function updateCounts() {
+  srcCount.textContent = srcText.value.length + ' 字';
+  tgtCount.textContent = finalText.length + ' 字';
+}
+srcText.addEventListener('input', updateCounts);
+updateCounts();
+
+/* ---------- 录音与转写 ---------- */
+function fmt(s) { return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+
+function startRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = asrLangCode();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) { finalText += r[0].transcript; }
+      else interim += r[0].transcript;
+    }
+    interimText = interim;
+    renderTranscript();
+  };
+  recognition.onend = () => { if (recording) { try { recognition.start(); } catch (e) {} } };
+  recognition.onerror = e => {
+    if (e.error === 'not-allowed') { alert('浏览器未获得麦克风权限，请在地址栏允许麦克风后重试。'); stopRecording(); }
+  };
+  recognition.start();
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      $('audioPlayer').src = URL.createObjectURL(blob);
+      $('audioDownload').href = URL.createObjectURL(blob);
+      $('audioWrap').classList.remove('hidden');
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+  } catch (err) { alert('无法访问麦克风：' + err.message); return; }
+  recording = true;
+  finalText = ''; interimText = ''; seconds = 0;
+  renderTranscript();
+  startRecognition();
+  recBtn.textContent = '停止录音';
+  recBtn.classList.replace('bg-rose-600','bg-slate-700');
+  recBtn.classList.replace('hover:bg-rose-700','hover:bg-slate-800');
+  recState.classList.remove('hidden');
+  recTimer.textContent = '00:00';
+  asrStat.textContent = '正在识别 ' + langName[tgtLangSel.value] + '译入语';
+  timerInt = setInterval(() => { seconds++; recTimer.textContent = fmt(seconds); }, 1000);
+}
+
+function stopRecording() {
+  recording = false;
+  clearInterval(timerInt);
+  if (recognition) { try { recognition.stop(); } catch (e) {} }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  interimText = '';
+  renderTranscript();
+  recBtn.textContent = '开始录音';
+  recBtn.classList.replace('bg-slate-700','bg-rose-600');
+  recBtn.classList.replace('hover:bg-slate-800','hover:bg-rose-700');
+  recState.classList.add('hidden');
+  asrStat.textContent = finalText ? ('已完成 · ' + fmt(seconds) + ' · ' + finalText.length + ' 字') : '尚未录音';
+}
+
+recBtn.addEventListener('click', () => recording ? stopRecording() : startRecording());
+
+function renderTranscript() {
+  transcriptHint.style.display = (finalText || interimText) ? 'none' : '';
+  finalEl.textContent = finalText;
+  interimEl.textContent = interimText;
+  $('transcriptBox').scrollTop = $('transcriptBox').scrollHeight;
+  updateCounts();
+}
+
+$('clearAsrBtn').addEventListener('click', () => {
+  if (recording) stopRecording();
+  finalText = ''; interimText = '';
+  renderTranscript();
+  $('audioWrap').classList.add('hidden');
+  asrStat.textContent = '尚未录音';
+});
+
+/* ---------- WebLLM 评价 ---------- */
+let webllm = null, engine = null, engineModel = '';
+const modelStatus = $('modelStatus'), progressWrap = $('modelProgressWrap'),
+      progressBar = $('modelProgressBar'), progressText = $('modelProgressText'), progressPct = $('modelProgressPct');
+
+if (!('gpu' in navigator)) $('webgpuWarning').classList.remove('hidden');
+
+function setStatus(text, cls) {
+  modelStatus.textContent = text;
+  modelStatus.className = 'mt-1 text-sm px-3 py-2 rounded-lg border ' + cls;
+}
+
+function resetEngine() {
+  if (engine) { try { engine.unload(); } catch (e) {} }
+  engine = null; engineModel = '';
+  setStatus('未加载', 'bg-slate-100 text-slate-600 border border-slate-200');
+}
+
+async function ensureEngine() {
+  if (engine && engineModel === modelSel.value) return engine;
+  if (!('gpu' in navigator)) throw new Error('当前浏览器不支持 WebGPU，请在电脑端用 Chrome/Edge 打开本页面再评价。');
+  if (!webllm) webllm = await import('https://esm.run/@mlc-ai/web-llm');
+  progressWrap.classList.remove('hidden');
+  setStatus('加载中…', 'bg-indigo-50 text-indigo-700 border border-indigo-200');
+  engine = await webllm.CreateMLCEngine(modelSel.value, {
+    initProgressCallback: p => {
+      const pct = Math.min(100, Math.round(p.progress / 2 * 100));
+      progressBar.style.width = pct + '%';
+      progressPct.textContent = pct + '%';
+      progressText.textContent = p.text || '准备中…';
+    }
+  });
+  engineModel = modelSel.value;
+  setStatus('就绪', 'bg-emerald-50 text-emerald-700 border border-emerald-200');
+  return engine;
+}
+
+function buildMessages() {
+  const srcL = langName[srcLangSel.value], tgtL = langName[tgtLangSel.value];
+  const system = '你是一位资深的口译教学与评价专家。用户会提供一段口译练习的原文和学生译文的语音转写。请从四个维度评价：1.信息完整度（要点遗漏、增添、删减）；2.准确性（误译、数字、专名、逻辑关系错误）；3.表达质量（译入语通顺度、语法与搭配）；4.术语与风格（术语正确、语域得当）。注意转写可能有同音字误差，理解时请合理容错。请用简体中文按以下结构输出：\n## 总体评价\n（2-3句）\n## 分项点评\n逐条指出具体问题，引用原文和译文原句对照说明\n## 改进建议\n给出3条针对性、可操作的建议';
+  const user = '【原文（' + srcL + '）】\n' + srcText.value.trim() + '\n\n【学生译文转写（' + tgtL + '）】\n' + finalText.trim();
+  return [{ role: 'system', content: system }, { role: 'user', content: user }];
+}
+
+/* 轻量 Markdown 渲染 */
+function mdToHtml(md) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const lines = esc(md).split('\n');
+  let html = '', inList = false;
+  const inline = s => s.replace(/\*\*(.+?)\*\*/g,'<strong class="font-medium">$1</strong>');
+  for (const line of lines) {
+    const t = line.trim();
+    if (/^#{2,3}\s/.test(t)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<h3 class="font-medium text-slate-900 mt-4 mb-1">' + inline(t.replace(/^#{2,3}\s*/,'')) + '</h3>';
+    } else if (/^[-*]\s+/.test(t)) {
+      if (!inList) { html += '<ul class="list-disc pl-5 my-1 space-y-0.5">'; inList = true; }
+      html += '<li>' + inline(t.replace(/^[-*]\s+/,'')) + '</li>';
+    } else if (t === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<p class="my-1">' + inline(t) + '</p>';
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+let evaluating = false;
+evalBtn.addEventListener('click', async () => {
+  if (evaluating) return;
+  if (!srcText.value.trim()) { alert('请先粘贴原文本。'); return; }
+  if (!finalText.trim()) { alert('请先完成录音转写（或确认转写区有译文文字）。'); return; }
+  evaluating = true;
+  evalBtn.disabled = true;
+  evalBtn.textContent = '生成中…';
+  evalOutput.innerHTML = '<p class="text-slate-400 fade-in">正在准备模型…</p>';
+  const t0 = performance.now();
+  try {
+    const eng = await ensureEngine();
+    evalOutput.innerHTML = '<p class="text-slate-400">模型正在逐句评阅…</p>';
+    let acc = '';
+    const chunks = await eng.chat.completions.create({ messages: buildMessages(), stream: true, temperature: 0.5 });
+    for await (const c of chunks) {
+      const d = c.choices[0]?.delta?.content || '';
+      if (d) { acc += d; evalOutput.innerHTML = mdToHtml(acc); }
+    }
+    const dt = ((performance.now() - t0) / 1000).toFixed(0);
+    evalMeta.textContent = '模型 ' + engineModel.replace('-Instruct-q4f16_1-MLC','') + ' · 用时 ' + dt + ' 秒';
+    copyEvalBtn.classList.remove('hidden');
+    copyEvalBtn.onclick = () => { navigator.clipboard.writeText(acc); copyEvalBtn.textContent = '已复制'; setTimeout(()=>copyEvalBtn.textContent='复制评价',1500); };
+  } catch (err) {
+    evalOutput.innerHTML = '<p class="text-rose-600">评价失败：' + (err.message || err) + '</p><p class="text-slate-400 text-xs mt-2">常见原因：首次下载模型中断（重试即可续传）、浏览器不支持 WebGPU（换电脑端 Chrome/Edge）、内存不足（换更小的模型）。</p>';
+  } finally {
+    evaluating = false;
+    evalBtn.disabled = false;
+    evalBtn.textContent = '生成评价';
+  }
+});
+</script>
+</body>
+</html>
