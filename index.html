@@ -8,8 +8,6 @@
 <style>
   .serif { font-family: "Source Han Serif SC", "Noto Serif SC", "SimSun", serif; }
   textarea { resize: vertical; }
-  .fade-in { animation: fade .4s ease both; }
-  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none;} }
   .pulse-dot { animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 1;} 50% { opacity: .25;} }
 </style>
@@ -20,89 +18,125 @@
   <div class="max-w-6xl mx-auto px-4 py-5 flex flex-wrap items-center gap-3 justify-between">
     <div>
       <h1 class="serif text-xl font-semibold tracking-wide text-slate-900">口译练习 · 录音转写与评价</h1>
-      <p class="text-sm text-slate-500 mt-1">原文录入 → 学生口译录音 → 实时逐字转写 → 本地大模型按量规评价</p>
+      <p class="text-sm text-slate-500 mt-1">填密钥 → 录口译 → 云端转写成文字 → 大模型按量规评价</p>
     </div>
     <div class="flex gap-2 text-xs">
-      <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">纯浏览器运行</span>
       <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">无需安装软件</span>
-      <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">不消耗 token</span>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">免费额度可用</span>
     </div>
   </div>
 </header>
 
 <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
-  <!-- 设置栏 -->
-  <section class="bg-white border border-slate-200 rounded-xl p-4">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+  <!-- ① 密钥与接口 -->
+  <section class="bg-white border-2 border-indigo-200 rounded-xl p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+      <h2 class="font-medium text-slate-900"><span class="text-indigo-500 mr-2">①</span>开通凭证（不填这一步，转写和评价都点不动）</h2>
+      <span id="keyBadge" class="text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">密钥未填写</span>
+    </div>
+
+    <label class="block mb-3">
+      <span class="text-xs text-slate-500">API Key（只保存在你自己浏览器里，不会上传给我）</span>
+      <div class="flex flex-wrap gap-2 mt-1">
+        <input id="apiKey" type="password" class="flex-1 min-w-[260px] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="sk-...">
+        <button id="testBtn" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition whitespace-nowrap">检测连接</button>
+      </div>
+    </label>
+
+    <p class="text-xs text-slate-500 mb-3 leading-6">
+      还没有密钥？点 <a href="https://cloud.siliconflow.cn/i/SvzHkGKx" target="_blank" class="text-indigo-600 underline underline-offset-2">硅基流动注册页</a> → 微信扫码登录 → 左侧「API 密钥」→ 复制粘贴到上面。
+      这家同时提供<b>免费语音识别</b>和<b>免费大模型</b>，一个密钥搞定全部功能。
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+      <label class="block">
+        <span class="text-xs text-slate-500">服务商</span>
+        <select id="preset" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="siliconflow">硅基流动（推荐 · 免费）</option>
+          <option value="bigmodel">智谱开放平台</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="ollama">本机 Ollama</option>
+          <option value="custom">自定义接口</option>
+        </select>
+      </label>
+      <label class="block md:col-span-2">
+        <span class="text-xs text-slate-500">评价接口地址</span>
+        <input id="endpoint" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="https://api.siliconflow.cn/v1/chat/completions">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">评价模型</span>
+        <input id="modelName" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="Qwen/Qwen2.5-7B-Instruct">
+      </label>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mt-3">
       <label class="block">
         <span class="text-xs text-slate-500">源语（原文语言）</span>
         <select id="srcLang" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-          <option value="en">英语</option>
-          <option value="zh">中文</option>
-          <option value="other">其他</option>
+          <option value="en">英语</option><option value="zh">中文</option><option value="other">其他</option>
         </select>
       </label>
       <label class="block">
-        <span class="text-xs text-slate-500">译入语（录音识别与评价语言）</span>
+        <span class="text-xs text-slate-500">译入语（口译输出语言）</span>
         <select id="tgtLang" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-          <option value="zh">中文（普通话）</option>
-          <option value="en">英语</option>
+          <option value="zh">中文</option><option value="en">英语</option>
         </select>
       </label>
       <label class="block">
-        <span class="text-xs text-slate-500">评价模型（首次使用自动下载并缓存）</span>
-        <select id="modelId" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-          <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5 1.5B · 约1GB · 均衡（推荐）</option>
-          <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约0.5GB · 最快</option>
-          <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen2.5 3B · 约2GB · 更准</option>
-          <option value="Qwen2.5-7B-Instruct-q4f16_1-MLC">Qwen2.5 7B · 约4.5GB · 需较好显卡</option>
+        <span class="text-xs text-slate-500">转写方式</span>
+        <select id="asrMode" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="cloud">云端识别（推荐 · 秒出结果）</option>
+          <option value="local">本机 Whisper 模型</option>
         </select>
       </label>
-      <div>
-        <span class="text-xs text-slate-500">模型状态</span>
-        <div id="modelStatus" class="mt-1 text-sm px-3 py-2 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">未加载</div>
-      </div>
     </div>
-    <div id="modelProgressWrap" class="hidden mt-3">
-      <div class="flex justify-between text-xs text-slate-500 mb-1"><span id="modelProgressText">准备中…</span><span id="modelProgressPct"></span></div>
-      <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="modelProgressBar" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%"></div></div>
-      <p class="text-xs text-slate-400 mt-1">首次下载约需几分钟，之后浏览器会缓存，下次打开无需重复下载。建议课前在此电脑上先点一次「生成评价」完成预热。</p>
+
+    <div id="cloudAsrBox" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+      <label class="block">
+        <span class="text-xs text-slate-500">语音识别接口地址</span>
+        <input id="asrEndpoint" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="https://api.siliconflow.cn/v1/audio/transcriptions">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">语音识别模型（免费）</span>
+        <input id="asrModel" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="FunAudioLLM/SenseVoiceSmall">
+      </label>
     </div>
-    <div id="webgpuWarning" class="hidden mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-      当前浏览器不支持 WebGPU，无法运行评价模型。录音与转写不受影响；请在电脑端使用 Chrome 或 Edge 浏览器进行评价。
-    </div>
+
+    <div id="testResult" class="hidden mt-3 text-xs leading-6 border rounded-lg px-3 py-2"></div>
   </section>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-    <!-- 第一步：原文 -->
+    <!-- ② 原文 -->
     <section class="bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">①</span>原文本</h2>
+        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">②</span>原文本</h2>
         <span class="text-xs text-slate-400" id="srcCount">0 字</span>
       </div>
       <textarea id="srcText" rows="12" placeholder="把口译练习的原文（讲稿、素材）粘贴到这里……"
-        class="w-full flex-1 min-h-[220px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+        class="w-full flex-1 min-h-[200px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
     </section>
 
-    <!-- 第二步：录音转写 -->
+    <!-- ③ 录音转写 -->
     <section class="bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">②</span>口译录音与实时转写</h2>
+        <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">③</span>口译录音与转写</h2>
         <span class="text-xs text-slate-400" id="asrStat">尚未录音</span>
       </div>
       <div class="flex flex-wrap items-center gap-3 mb-3">
         <button id="recBtn" class="px-5 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition">开始录音</button>
         <span id="recTimer" class="text-sm text-slate-500 tabular-nums">00:00</span>
         <span id="recState" class="text-sm hidden text-rose-600"><span class="inline-block w-2 h-2 rounded-full bg-rose-600 mr-1 pulse-dot align-middle"></span>录音中</span>
+        <button id="fileBtn" class="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">或用音频文件转写</button>
+        <input id="fileInput" type="file" accept="audio/*" class="hidden">
       </div>
-      <div id="transcriptBox" class="flex-1 min-h-[180px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed overflow-y-auto bg-stone-50">
-        <span id="finalTranscript" class="whitespace-pre-wrap"></span><span id="interimTranscript" class="text-slate-400 whitespace-pre-wrap"></span>
-        <p id="transcriptHint" class="text-slate-300">点击「开始录音」后，学生开始口译，译文会实时出现在这里。</p>
+      <div id="barWrap" class="hidden mb-2">
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="bar" class="h-full bg-emerald-500 transition-all" style="width:0%"></div></div>
+        <p id="barText" class="text-xs text-slate-500 mt-1">准备中…</p>
       </div>
+      <textarea id="transcript" rows="12" placeholder="点击「开始录音」，说完点「停止」，转写文字会自动出现在这里（也可以手动修改或粘贴）"
+        class="w-full flex-1 min-h-[200px] border border-slate-300 rounded-lg px-4 py-3 text-sm leading-relaxed bg-stone-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
       <div class="flex flex-wrap items-center gap-3 mt-3">
-        <button id="clearAsrBtn" class="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">清空转写</button>
         <span class="text-xs text-slate-400" id="tgtCount">0 字</span>
         <div id="audioWrap" class="hidden flex-1 min-w-[220px] flex items-center gap-2">
           <audio id="audioPlayer" controls class="h-8 flex-1"></audio>
@@ -112,17 +146,14 @@
     </section>
   </div>
 
-  <!-- 第三步：评价 -->
+  <!-- ④ 评价 -->
   <section class="bg-white border border-slate-200 rounded-xl p-5">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-      <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">③</span>大模型评价</h2>
-      <div class="flex items-center gap-3">
-        <span class="text-xs text-slate-400">模型在本设备浏览器内运行，数据不出本机</span>
-        <button id="evalBtn" class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-40 disabled:cursor-not-allowed">生成评价</button>
-      </div>
+      <h2 class="font-medium text-slate-900"><span class="text-slate-400 mr-2">④</span>大模型评价</h2>
+      <button id="evalBtn" class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-40 disabled:cursor-not-allowed">生成评价</button>
     </div>
     <div id="evalOutput" class="min-h-[120px] border border-slate-200 rounded-lg px-5 py-4 text-sm leading-7 bg-stone-50 text-slate-700">
-      <p class="text-slate-300">评价结果将显示在这里。点击「生成评价」后，首次会先下载模型（见上方进度条），然后流式生成评语。</p>
+      <p class="text-slate-400">评价结果将显示在这里。</p>
     </div>
     <div class="flex items-center gap-4 mt-3">
       <button id="copyEvalBtn" class="hidden text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">复制评价</button>
@@ -131,191 +162,458 @@
   </section>
 
   <details class="bg-white border border-slate-200 rounded-xl p-5 text-sm text-slate-600">
-    <summary class="cursor-pointer font-medium text-slate-800">使用说明与注意事项</summary>
-    <ul class="list-disc pl-5 mt-3 space-y-1.5 leading-6">
-      <li>建议使用 Chrome 或 Edge 浏览器；手机端可录音转写，但大模型评价需要 WebGPU，目前仅部分电脑浏览器支持。</li>
-      <li>录音前请允许浏览器使用麦克风；语音识别需联网（走浏览器自带引擎，不耗 token）。</li>
-      <li>评价模型首次使用会自动下载到浏览器缓存（大小见模型选项），之后离线也能评价。</li>
-      <li>口译时长建议控制在每段 2–3 分钟以内，转写效果更稳定；长时间录音若转写自动暂停，点「开始录音」可继续，转写内容不会丢失。</li>
-      <li>本页面所有数据（原文、录音、转写、评价）只存在于当前浏览器中，刷新页面前请注意保存需要的内容。</li>
-    </ul>
+    <summary class="cursor-pointer font-medium text-slate-800">使用说明（先看这个）</summary>
+    <ol class="list-decimal pl-5 mt-3 space-y-2 leading-6">
+      <li><b>第一步必须做：</b>粘贴 API 密钥 → 点「检测连接」→ 看到「评价接口 ✓」「语音识别 ✓」两个绿勾，再往下走。</li>
+      <li>用 Chrome 或 Edge 打开本页面。麦克风弹窗请点「允许」。</li>
+      <li>流程：粘贴原文 → 点「开始录音」，学生口译 → 点「停止」→ 自动上传并转写（约 2–5 秒）→ 点「生成评价」。</li>
+      <li>单个段落建议 1–2 分钟以内，长了审核慢也容易超出免费额度限制。</li>
+      <li>本页面可以直接双击打开使用（地址栏显示 file:// 也没问题）；若浏览器不给开麦克风，改用「或用音频文件转写」上传 mp3/m4a/wav 即可。</li>
+      <li>要发给学生用链接，才需要把这个文件上传到 GitHub Pages 之类的静态托管。</li>
+      <li>录音会通过你填的那家服务商转写免费额度通道处理；不同学校对教学数据上传的要求不同，请按你单位规定自行判断。</li>
+      <li>页面刷新后原文和转写会清空，重要内容请先复制保存（密钥会保留）。</li>
+    </ol>
   </details>
 
-  <footer class="text-center text-xs text-slate-400 pb-6">口译教学工具 · 单文件网页 · Web Speech API + WebLLM 本地运行</footer>
+  <details class="bg-white border border-slate-200 rounded-xl p-5 text-sm">
+    <summary class="cursor-pointer font-medium text-slate-800">运行日志（出问题时展开，点「复制日志」发给我）</summary>
+    <div class="flex gap-3 mt-3 mb-2">
+      <button id="copyLogBtn" class="text-xs text-indigo-600 hover:text-indigo-800 underline underline-offset-2">复制日志</button>
+      <button id="clearLogBtn" class="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2">清空</button>
+    </div>
+    <pre id="log" class="text-xs leading-6 text-slate-600 whitespace-pre-wrap font-mono bg-stone-50 border border-slate-200 rounded-lg p-3 max-h-64 overflow-auto"></pre>
+  </details>
+
+  <footer class="text-center text-xs text-slate-400 pb-6">口译教学工具 · 单文件网页 · 云端语音识别 + 大模型评价</footer>
 </main>
 
-<script type="module">
+<script>
 const $ = id => document.getElementById(id);
-const srcText = $('srcText'), srcCount = $('srcCount'), tgtCount = $('tgtCount');
+const logEl = $('log');
+function log(m) {
+  logEl.textContent += '[' + new Date().toLocaleTimeString('zh-CN', { hour12: false }) + '] ' + m + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+const srcText = $('srcText'), transcript = $('transcript');
 const recBtn = $('recBtn'), recTimer = $('recTimer'), recState = $('recState'), asrStat = $('asrStat');
-const finalEl = $('finalTranscript'), interimEl = $('interimTranscript'), transcriptHint = $('transcriptHint');
-const evalBtn = $('evalBtn'), evalOutput = $('evalOutput'), evalMeta = $('evalMeta'), copyEvalBtn = $('copyEvalBtn');
+const evalBtn = $('evalBtn'), evalOutput = $('evalOutput'), evalMeta = $('evalMeta');
+const barWrap = $('barWrap'), bar = $('bar'), barText = $('barText');
+const srcLangSel = $('srcLang'), tgtLangSel = $('tgtLang');
+const presetSel = $('preset'), endpointIn = $('endpoint'), modelIn = $('modelName'), keyIn = $('apiKey');
+const asrModeSel = $('asrMode'), asrEpIn = $('asrEndpoint'), asrModelIn = $('asrModel');
 
-let recording = false, finalText = '', interimText = '', timerInt = null, seconds = 0;
-let recognition = null, mediaRecorder = null, audioChunks = [];
+let recording = false, seconds = 0, timerInt = null, mediaRecorder = null, audioChunks = [], lastBlob = null, busy = false;
 
-/* ---------- 设置持久化 ---------- */
-const srcLangSel = $('srcLang'), tgtLangSel = $('tgtLang'), modelSel = $('modelId');
-for (const [el, key] of [[srcLangSel,'it_srcLang'],[tgtLangSel,'it_tgtLang'],[modelSel,'it_model']]) {
+/* ---------- 设置与本地保存 ---------- */
+const PRESETS = {
+  siliconflow: { chat: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct',
+                 asr: 'https://api.siliconflow.cn/v1/audio/transcriptions', asrModel: 'FunAudioLLM/SenseVoiceSmall' },
+  bigmodel:    { chat: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash',
+                 asr: 'https://open.bigmodel.cn/api/paas/v4/audio/transcriptions', asrModel: 'glm-asr-2512' },
+  deepseek:    { chat: 'https://api.deepseek.com/chat/completions', model: 'deepseek-chat',
+                 asr: 'https://api.siliconflow.cn/v1/audio/transcriptions', asrModel: 'FunAudioLLM/SenseVoiceSmall' },
+  ollama:      { chat: 'http://localhost:11434/v1/chat/completions', model: 'qwen2.5:7b', asr: '', asrModel: '' },
+  custom:      { chat: '', model: '', asr: '', asrModel: '' }
+};
+const STORE = [[srcLangSel,'it3_src'],[tgtLangSel,'it3_tgt'],[endpointIn,'it3_ep'],[modelIn,'it3_mn'],
+               [keyIn,'it3_key'],[asrEpIn,'it3_aep'],[asrModelIn,'it3_am'],[asrModeSel,'it3_mode']];
+for (const [el, key] of STORE) {
   const v = localStorage.getItem(key);
-  if (v) el.value = v;
-  el.addEventListener('change', () => { localStorage.setItem(key, el.value); if (el === modelSel) resetEngine(); });
+  if (v && el.tagName === 'SELECT') el.value = v;
+  else if (v) el.value = v;
+  el.addEventListener('change', () => localStorage.setItem(key, el.value));
+  el.addEventListener('input', () => { localStorage.setItem(key, el.value); refreshBadge(); });
 }
-const langName = { zh: '中文', en: '英语', other: '其他语言' };
-const asrLangCode = () => tgtLangSel.value === 'en' ? 'en-US' : 'zh-CN';
 
-/* ---------- 字数统计 ---------- */
-function updateCounts() {
-  srcCount.textContent = srcText.value.length + ' 字';
-  tgtCount.textContent = finalText.length + ' 字';
+function applyPreset(force) {
+  const p = PRESETS[presetSel.value];
+  if (presetSel.value !== 'custom' && (force || !localStorage.getItem('it3_ep'))) endpointIn.value = p.chat;
+  if (presetSel.value !== 'custom' && (force || !localStorage.getItem('it3_mn'))) modelIn.value = p.model;
+  if (p.asr && (force || !localStorage.getItem('it3_aep'))) asrEpIn.value = p.asr;
+  if (p.asrModel && (force || !localStorage.getItem('it3_am'))) asrModelIn.value = p.asrModel;
+  localStorage.setItem('it3_preset', presetSel.value);
+  syncAsrBox();
 }
-srcText.addEventListener('input', updateCounts);
-updateCounts();
+const savedPreset = localStorage.getItem('it3_preset');
+if (savedPreset) presetSel.value = savedPreset;
+applyPreset(!savedPreset);
+if (!asrEpIn.value) asrEpIn.value = PRESETS.siliconflow.asr;
+if (!asrModelIn.value) asrModelIn.value = PRESETS.siliconflow.asrModel;
+presetSel.addEventListener('change', () => applyPreset(true));
+asrModeSel.addEventListener('change', () => { localStorage.setItem('it3_mode', asrModeSel.value); syncAsrBox(); });
 
-/* ---------- 录音与转写 ---------- */
-function fmt(s) { return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+function syncAsrBox() {
+  $('cloudAsrBox').classList.toggle('hidden', asrModeSel.value !== 'cloud');
+}
+syncAsrBox();
 
-function startRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.lang = asrLangCode();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.onresult = e => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      if (r.isFinal) { finalText += r[0].transcript; }
-      else interim += r[0].transcript;
+function refreshBadge() {
+  const b = $('keyBadge');
+  const ok = keyIn.value.trim().length > 6;
+  b.textContent = ok ? '密钥已填写' : '密钥未填写';
+  b.className = 'text-xs px-2.5 py-1 rounded-full border ' +
+    (ok ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200');
+}
+refreshBadge();
+log('页面已加载，当前转写方式：' + (asrModeSel.value === 'cloud' ? '云端识别' : '本机模型'));
+
+const LANG = { zh: '中文', en: '英语', other: '其他语言' };
+function showBar(pct, text) { barWrap.classList.remove('hidden'); bar.style.width = Math.max(0, Math.min(100, pct)) + '%'; barText.textContent = text; }
+function hideBar() { barWrap.classList.add('hidden'); }
+function fmt(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+
+/* ---------- 连接自检 ---------- */
+function hintHttp(status, body) {
+  const b = String(body || '').slice(0, 160);
+  if (status === 401 || status === 403) return '密钥无效或已失效（HTTP ' + status + '）：请重新复制粘贴密钥。' + b;
+  if (status === 402) return '账户额度不足（HTTP 402）：请到服务商账户页查看是否还有免费额度。' + b;
+  if (status === 429) return '请求太频繁，稍等几秒再试（HTTP 429）。' + b;
+  if (status === 404) return '接口地址写错了（HTTP 404）：' + b;
+  return '接口返回 HTTP ' + status + '：' + b;
+}
+
+$('testBtn').addEventListener('click', async () => {
+  const key = keyIn.value.trim();
+  const box = $('testResult');
+  if (!key) {
+    box.className = 'mt-3 text-xs leading-6 border rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border-rose-200';
+    box.textContent = '请先粘贴密钥再检测。没有的话，点上面的「硅基流动注册页」扫码注册即可免费获取。';
+    box.classList.remove('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  box.className = 'mt-3 text-xs leading-6 border rounded-lg px-3 py-2 bg-slate-50 text-slate-600 border-slate-200';
+  box.textContent = '正在检测…';
+  const lines = [];
+  let okCount = 0;
+
+  // 1) 评价接口
+  try {
+    const t0 = Date.now();
+    const res = await fetch(endpointIn.value.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: modelIn.value.trim(), messages: [{ role: 'user', content: '回复两个字：收到' }], max_tokens: 10 })
+    });
+    if (res.ok) {
+      const d = await res.json().catch(() => null);
+      const c = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+      lines.push('评价接口 ✓ 正常（模型 ' + modelIn.value.trim() + '，' + Math.round((Date.now() - t0) / 1000 * 10) / 10 + ' 秒' + (c ? '，回复：' + String(c).slice(0, 20) : '') + '）');
+      okCount++;
+    } else {
+      const txt = await res.text();
+      lines.push('评价接口 ✗ ' + hintHttp(res.status, txt));
+      log('评价自检失败：HTTP ' + res.status + ' ' + txt.slice(0, 200));
     }
-    interimText = interim;
-    renderTranscript();
-  };
-  recognition.onend = () => { if (recording) { try { recognition.start(); } catch (e) {} } };
-  recognition.onerror = e => {
-    if (e.error === 'not-allowed') { alert('浏览器未获得麦克风权限，请在地址栏允许麦克风后重试。'); stopRecording(); }
-  };
-  recognition.start();
+  } catch (e) {
+    lines.push('评价接口 ✗ 连不上：' + e.message + '（检查网络；本机 Ollama 需先启动服务）');
+    log('评价自检异常：' + e.message);
+  }
+
+  // 2) 语音识别接口
+  if (asrModeSel.value === 'cloud' && asrEpIn.value.trim()) {
+    try {
+      const wav = encodeWav(new Float32Array(1600), 16000); // 0.1 秒静音用于探活
+      const fd = new FormData();
+      fd.append('file', new File([wav], 'probe.wav', { type: 'audio/wav' }));
+      fd.append('model', asrModelIn.value.trim());
+      const res = await fetch(asrEpIn.value.trim(), {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
+      });
+      const txt = await res.text();
+      if (res.ok) {
+        lines.push('语音识别 ✓ 正常（模型 ' + asrModelIn.value.trim() + '）');
+        okCount++;
+      } else {
+        lines.push('语音识别 ✗ ' + hintHttp(res.status, txt));
+        log('语音自检失败：HTTP ' + res.status + ' ' + txt.slice(0, 200));
+      }
+    } catch (e) {
+      lines.push('语音识别 ✗ 连不上：' + e.message);
+      log('语音自检异常：' + e.message);
+    }
+  } else {
+    lines.push('语音识别：当前选择「本机模型」，跳过云端检测。');
+  }
+
+  const allOk = okCount >= (asrModeSel.value === 'cloud' ? 2 : 1);
+  box.className = 'mt-3 text-xs leading-6 border rounded-lg px-3 py-2 ' +
+    (allOk ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200');
+  box.innerHTML = lines.map(s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('<br>');
+  log('连接自检结束，通过 ' + okCount + ' 项');
+});
+
+/* ---------- 音频工具 ---------- */
+function encodeWav(float32, rate) {
+  const len = float32.length;
+  const buf = new ArrayBuffer(44 + len * 2);
+  const v = new DataView(buf);
+  const w = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); w(8, 'WAVE');
+  w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, len * 2, true);
+  let o = 44;
+  for (let i = 0; i < len; i++) {
+    let s = Math.max(-1, Math.min(1, float32[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2;
+  }
+  return new Blob([buf], { type: 'audio/wav' });
 }
 
+async function blobToFloat16k(blob) {
+  const arr = await blob.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let decoded;
+  try { decoded = await ctx.decodeAudioData(arr); }
+  catch (e) { throw new Error('音频解码失败（换 Chrome/Edge 再试）：' + e.message); }
+  try { ctx.close(); } catch (e) {}
+  const rate = 16000;
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * rate)), rate);
+  const src = off.createBufferSource();
+  src.buffer = decoded; src.connect(off.destination); src.start(0);
+  const rendered = await off.startRendering();
+  return rendered.getChannelData(0);
+}
+
+function rms(a) {
+  let s = 0;
+  for (let i = 0; i < a.length; i += 10) s += a[i] * a[i];
+  return Math.sqrt(s / (a.length / 10 || 1));
+}
+
+/* ---------- 录音 ---------- */
 async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
-    mediaRecorder.ondataavailable = e => { if (e.data.size) audioChunks.push(e.data); };
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) audioChunks.push(e.data); };
     mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-      $('audioPlayer').src = URL.createObjectURL(blob);
-      $('audioDownload').href = URL.createObjectURL(blob);
+      lastBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      $('audioPlayer').src = URL.createObjectURL(lastBlob);
+      $('audioDownload').href = URL.createObjectURL(lastBlob);
       $('audioWrap').classList.remove('hidden');
       stream.getTracks().forEach(t => t.stop());
+      runTranscribe();
     };
     mediaRecorder.start();
-  } catch (err) { alert('无法访问麦克风：' + err.message); return; }
-  recording = true;
-  finalText = ''; interimText = ''; seconds = 0;
-  renderTranscript();
-  startRecognition();
+  } catch (err) {
+    log('麦克风错误：' + err.message);
+    alert('无法访问麦克风：' + err.message + '\n请用 Chrome/Edge 打开，并在地址栏允许麦克风权限。');
+    return;
+  }
+  recording = true; seconds = 0;
   recBtn.textContent = '停止录音';
-  recBtn.classList.replace('bg-rose-600','bg-slate-700');
-  recBtn.classList.replace('hover:bg-rose-700','hover:bg-slate-800');
+  recBtn.classList.replace('bg-rose-600', 'bg-slate-700');
+  recBtn.classList.replace('hover:bg-rose-700', 'hover:bg-slate-800');
   recState.classList.remove('hidden');
   recTimer.textContent = '00:00';
-  asrStat.textContent = '正在识别 ' + langName[tgtLangSel.value] + '译入语';
+  asrStat.textContent = '录音中…';
   timerInt = setInterval(() => { seconds++; recTimer.textContent = fmt(seconds); }, 1000);
+  log('开始录音');
 }
-
 function stopRecording() {
   recording = false;
   clearInterval(timerInt);
-  if (recognition) { try { recognition.stop(); } catch (e) {} }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  interimText = '';
-  renderTranscript();
   recBtn.textContent = '开始录音';
-  recBtn.classList.replace('bg-slate-700','bg-rose-600');
-  recBtn.classList.replace('hover:bg-slate-800','hover:bg-rose-700');
+  recBtn.classList.replace('bg-slate-700', 'bg-rose-600');
+  recBtn.classList.replace('hover:bg-slate-800', 'hover:bg-rose-700');
   recState.classList.add('hidden');
-  asrStat.textContent = finalText ? ('已完成 · ' + fmt(seconds) + ' · ' + finalText.length + ' 字') : '尚未录音';
+  log('录音结束，时长 ' + fmt(seconds));
 }
-
 recBtn.addEventListener('click', () => recording ? stopRecording() : startRecording());
 
-function renderTranscript() {
-  transcriptHint.style.display = (finalText || interimText) ? 'none' : '';
-  finalEl.textContent = finalText;
-  interimEl.textContent = interimText;
-  $('transcriptBox').scrollTop = $('transcriptBox').scrollHeight;
-  updateCounts();
-}
-
-$('clearAsrBtn').addEventListener('click', () => {
-  if (recording) stopRecording();
-  finalText = ''; interimText = '';
-  renderTranscript();
-  $('audioWrap').classList.add('hidden');
-  asrStat.textContent = '尚未录音';
+$('fileBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  lastBlob = f;
+  $('audioPlayer').src = URL.createObjectURL(f);
+  $('audioDownload').href = URL.createObjectURL(f);
+  $('audioDownload').download = f.name;
+  $('audioWrap').classList.remove('hidden');
+  log('已选择音频文件：' + f.name + '（' + (f.size / 1048576).toFixed(1) + 'MB）');
+  runTranscribe();
 });
 
-/* ---------- WebLLM 评价 ---------- */
-let webllm = null, engine = null, engineModel = '';
-const modelStatus = $('modelStatus'), progressWrap = $('modelProgressWrap'),
-      progressBar = $('modelProgressBar'), progressText = $('modelProgressText'), progressPct = $('modelProgressPct');
+/* ---------- 云端转写 ---------- */
+async function transcribeCloud() {
+  keyIn.blur();
+  const key = keyIn.value.trim();
+  if (!key) throw new Error('还没填 API 密钥。先在第 ① 步粘贴密钥并点「检测连接」。');
+  if (!asrEpIn.value.trim()) throw new Error('缺少语音识别接口地址。');
 
-if (!('gpu' in navigator)) $('webgpuWarning').classList.remove('hidden');
+  showBar(30, '正在处理音频…');
+  const audio = await blobToFloat16k(lastBlob);
+  const secs = audio.length / 16000;
+  log('音频就绪：' + secs.toFixed(1) + ' 秒，音量 RMS ' + rms(audio).toFixed(4));
+  if (rms(audio) < 0.004) {
+    log('提示：这段录音几乎听不到声音，识别结果可能为空。请检查麦克风是否被静音。');
+  }
+  const wav = encodeWav(audio, 16000);
+  log('WAV 大小 ' + (wav.size / 1048576).toFixed(2) + 'MB，正在上传识别…');
+  showBar(60, '正在上传并识别…');
 
-function setStatus(text, cls) {
-  modelStatus.textContent = text;
-  modelStatus.className = 'mt-1 text-sm px-3 py-2 rounded-lg border ' + cls;
+  const fd = new FormData();
+  fd.append('file', new File([wav], 'speech.wav', { type: 'audio/wav' }));
+  fd.append('model', asrModelIn.value.trim());
+  const t0 = Date.now();
+  const res = await fetch(asrEpIn.value.trim(), {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
+  });
+  const txt = await res.text();
+  let data = null;
+  try { data = JSON.parse(txt); } catch (e) { /* 非 JSON 时走下方提示 */ }
+  if (!res.ok) throw new Error(hintHttp(res.status, txt));
+  let text = '';
+  if (data) {
+    text = data.text || data.transcription ||
+      (data.data && (data.data.text || data.data.result)) ||
+      (data.result && data.result.text) ||
+      (data.choices && data.choices[0] && data.choices[0].text) || '';
+  }
+  text = String(text || '').replace(/<\|[^|>]*\|>/g, '').trim();
+  if (!text) {
+    text = String(txt || '').replace(/<\|[^|>]*\|>/g, '').trim();
+    if (text.length > 400) text = '';
+  }
+  log('识别返回：' + (JSON.stringify(data || txt).slice(0, 160)));
+  if (!text) throw new Error('接口没返回文字内容。可能是这段录音太短或没有声音，换个段落再录一次试试。');
+  log('云端识别完成，用时 ' + ((Date.now() - t0) / 1000).toFixed(1) + ' 秒');
+  return text;
 }
 
-function resetEngine() {
-  if (engine) { try { engine.unload(); } catch (e) {} }
-  engine = null; engineModel = '';
-  setStatus('未加载', 'bg-slate-100 text-slate-600 border border-slate-200');
+/* ---------- 本机 Whisper 转写（可选） ---------- */
+const MODEL_DIR = './models/whisper-tiny';
+let tf = null, asrPipe = null;
+async function loadTf() {
+  if (tf) return tf;
+  const cdns = [
+    'https://fastly.jsdelivr.net/npm/@huggingface/transformers@3.7.2/+esm',
+    'https://unpkg.com/@huggingface/transformers@3.7.2'
+  ];
+  for (const url of cdns) {
+    try { tf = await import(url); log('本机识别运行库加载成功'); return tf; }
+    catch (e) { log('运行库加载失败：' + url.slice(0, 40) + ' → ' + e.message); }
+  }
+  throw new Error('无法加载运行库，请把「转写方式」改成「云端识别」。');
 }
-
-async function ensureEngine() {
-  if (engine && engineModel === modelSel.value) return engine;
-  if (!('gpu' in navigator)) throw new Error('当前浏览器不支持 WebGPU，请在电脑端用 Chrome/Edge 打开本页面再评价。');
-  if (!webllm) webllm = await import('https://esm.run/@mlc-ai/web-llm');
-  progressWrap.classList.remove('hidden');
-  setStatus('加载中…', 'bg-indigo-50 text-indigo-700 border border-indigo-200');
-  engine = await webllm.CreateMLCEngine(modelSel.value, {
-    initProgressCallback: p => {
-      const pct = Math.min(100, Math.round(p.progress / 2 * 100));
-      progressBar.style.width = pct + '%';
-      progressPct.textContent = pct + '%';
-      progressText.textContent = p.text || '准备中…';
+async function prepareModel() {
+  let man;
+  try {
+    const r = await fetch(MODEL_DIR + '/manifest.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    man = await r.json();
+  } catch (e) {
+    throw new Error('没找到本机模型文件。本页已改用「云端识别」，请回到第 ① 步把转写方式改回云端。');
+  }
+  const cache = await caches.open('transformers-cache');
+  for (const [file, info] of Object.entries(man)) {
+    const head = await fetch(MODEL_DIR + '/' + file, { method: 'HEAD' });
+    if (head.ok) { log('模型文件已就位：' + file); continue; }
+    showBar(10, '正在组装模型文件…');
+    const bufs = [];
+    for (const p of info.parts) {
+      const r = await fetch(MODEL_DIR + '/' + p);
+      if (!r.ok) throw new Error('缺少模型分片：' + p);
+      bufs.push(await r.arrayBuffer());
+    }
+    const total = bufs.reduce((s, b) => s + b.byteLength, 0);
+    const merged = new Uint8Array(total);
+    let off = 0;
+    for (const b of bufs) { merged.set(new Uint8Array(b), off); off += b.byteLength; }
+    const blob = new Blob([merged], { type: 'application/octet-stream' });
+    await cache.put(MODEL_DIR + '/' + file, new Response(blob));
+    await cache.put(new URL(MODEL_DIR + '/' + file, location.href).href, new Response(blob));
+    log('已组装并缓存：' + file + '（' + (total / 1048576).toFixed(1) + 'MB）');
+  }
+}
+async function ensureAsr() {
+  if (asrPipe) return asrPipe;
+  const t = await loadTf();
+  t.env.allowLocalModels = true; t.env.allowRemoteModels = false; t.env.useBrowserCache = true;
+  await prepareModel();
+  showBar(30, '正在加载本机语音模型…');
+  asrPipe = await t.pipeline('automatic-speech-recognition', MODEL_DIR, {
+    device: 'wasm', dtype: 'q8', local_files_only: true,
+    progress_callback: e => {
+      if (!e) return;
+      if (e.status === 'progress') showBar(30 + (e.progress || 0) * 0.6, '加载本机模型 ' + Math.round(e.progress || 0) + '%');
+      else if (e.status === 'ready') showBar(95, '本机模型就绪');
     }
   });
-  engineModel = modelSel.value;
-  setStatus('就绪', 'bg-emerald-50 text-emerald-700 border border-emerald-200');
-  return engine;
+  log('本机语音模型就绪');
+  return asrPipe;
+}
+async function transcribeLocal() {
+  const pipe = await ensureAsr();
+  showBar(95, '正在转换音频…');
+  const audio = await blobToFloat16k(lastBlob);
+  log('本机识别中，音频 ' + (audio.length / 16000).toFixed(1) + ' 秒');
+  let text = '';
+  for (const lg of (tgtLangSel.value === 'en' ? ['english', 'en'] : ['chinese', 'zh'])) {
+    try {
+      const out = await pipe(audio, { language: lg, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
+      if (out && out.text && out.text.trim()) { text = out.text.trim(); break; }
+    } catch (e) { log('本机识别失败（' + lg + '）：' + e.message); }
+  }
+  if (!text) throw new Error('本机模型没识别出内容。可以在第 ① 步把转写方式改成「云端识别」再试。');
+  return text;
 }
 
+/* ---------- 转写主流程 ---------- */
+async function runTranscribe() {
+  if (!lastBlob) return;
+  if (transcript.value.trim() && !confirm('转写会覆盖现有文字，确定继续吗？')) return;
+  busy = true;
+  asrStat.textContent = '正在转写…';
+  const t0 = Date.now();
+  try {
+    const text = asrModeSel.value === 'cloud' ? await transcribeCloud() : await transcribeLocal();
+    transcript.value = text;
+    asrStat.textContent = '转写完成 · ' + fmt(seconds) + ' · ' + text.length + ' 字';
+    showBar(100, '转写完成');
+    setTimeout(hideBar, 800);
+    log('转写完成，用时 ' + ((Date.now() - t0) / 1000).toFixed(1) + ' 秒：' + text.slice(0, 60) + '…');
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    if (/Failed to fetch|NetworkError|TypeError/.test(msg)) {
+      log('网络层失败（可能是接口不允许跨域或断网）：' + msg);
+      asrStat.textContent = '转写失败（网络）';
+      alert('转写失败：网络连不上接口。\n常见原因：① 换用了不允许跨域的服务商（建议用硅基流动）；② 校园网屏蔽了该域名。\n详见页面底部「运行日志」。');
+    } else {
+      log('转写失败：' + msg);
+      asrStat.textContent = '转写失败';
+      alert('转写失败：' + msg + '\n详见页面底部「运行日志」。');
+    }
+  } finally {
+    hideBar(); busy = false; updateCounts();
+  }
+}
+
+/* ---------- 评价 ---------- */
 function buildMessages() {
-  const srcL = langName[srcLangSel.value], tgtL = langName[tgtLangSel.value];
-  const system = '你是一位资深的口译教学与评价专家。用户会提供一段口译练习的原文和学生译文的语音转写。请从四个维度评价：1.信息完整度（要点遗漏、增添、删减）；2.准确性（误译、数字、专名、逻辑关系错误）；3.表达质量（译入语通顺度、语法与搭配）；4.术语与风格（术语正确、语域得当）。注意转写可能有同音字误差，理解时请合理容错。请用简体中文按以下结构输出：\n## 总体评价\n（2-3句）\n## 分项点评\n逐条指出具体问题，引用原文和译文原句对照说明\n## 改进建议\n给出3条针对性、可操作的建议';
-  const user = '【原文（' + srcL + '）】\n' + srcText.value.trim() + '\n\n【学生译文转写（' + tgtL + '）】\n' + finalText.trim();
+  const srcL = LANG[srcLangSel.value], tgtL = LANG[tgtLangSel.value];
+  const system = '你是一位资深的口译教学与评价专家。用户提供口译练习的原文和学生译文的语音转写。请从四个维度评价：1.信息完整度（要点遗漏、增添、删减）；2.准确性（误译、数字、专名、逻辑关系错误）；3.表达质量（译入语通顺度、语法与搭配）；4.术语与风格（术语正确、语域得当）。注意转写可能有同音字误差，理解时请合理容错。请用简体中文按以下结构输出：\n## 总体评价\n（2-3句）\n## 分项点评\n逐条指出具体问题，引用原文和译文原句对照说明\n## 改进建议\n给出3条针对性、可操作的建议';
+  const user = '【原文（' + srcL + '）】\n' + srcText.value.trim() + '\n\n【学生译文转写（' + tgtL + '）】\n' + transcript.value.trim();
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 
-/* 轻量 Markdown 渲染 */
 function mdToHtml(md) {
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const lines = esc(md).split('\n');
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let html = '', inList = false;
-  const inline = s => s.replace(/\*\*(.+?)\*\*/g,'<strong class="font-medium">$1</strong>');
-  for (const line of lines) {
+  const inline = s => s.replace(/\*\*(.+?)\*\*/g, '<strong class="font-medium">$1</strong>');
+  for (const line of esc(md).split('\n')) {
     const t = line.trim();
     if (/^#{2,3}\s/.test(t)) {
       if (inList) { html += '</ul>'; inList = false; }
-      html += '<h3 class="font-medium text-slate-900 mt-4 mb-1">' + inline(t.replace(/^#{2,3}\s*/,'')) + '</h3>';
-    } else if (/^[-*]\s+/.test(t)) {
+      html += '<h3 class="font-medium text-slate-900 mt-4 mb-1">' + inline(t.replace(/^#{2,3}\s*/, '')) + '</h3>';
+    } else if (/^([-*]|\d+[.、])\s+/.test(t)) {
       if (!inList) { html += '<ul class="list-disc pl-5 my-1 space-y-0.5">'; inList = true; }
-      html += '<li>' + inline(t.replace(/^[-*]\s+/,'')) + '</li>';
+      html += '<li>' + inline(t.replace(/^([-*]|\d+[.、])\s+/, '')) + '</li>';
     } else if (t === '') {
       if (inList) { html += '</ul>'; inList = false; }
     } else {
@@ -327,37 +625,86 @@ function mdToHtml(md) {
   return html;
 }
 
-let evaluating = false;
+let lastEval = '';
 evalBtn.addEventListener('click', async () => {
-  if (evaluating) return;
-  if (!srcText.value.trim()) { alert('请先粘贴原文本。'); return; }
-  if (!finalText.trim()) { alert('请先完成录音转写（或确认转写区有译文文字）。'); return; }
-  evaluating = true;
+  if (busy) return;
+  const miss = [];
+  if (!srcText.value.trim()) miss.push('第 ② 步的原文本还没填');
+  if (!transcript.value.trim()) miss.push('第 ③ 步还没有转写文字（可以先手动粘贴学生译文）');
+  if (!endpointIn.value.trim()) miss.push('评价接口地址没填');
+  if (!modelIn.value.trim()) miss.push('评价模型名没填');
+  if (!keyIn.value.trim()) miss.push('第 ① 步的 API 密钥没填');
+  if (miss.length) {
+    alert('还不能生成评价：\n· ' + miss.join('\n· '));
+    return;
+  }
+  busy = true;
+  const old = evalBtn.textContent;
   evalBtn.disabled = true;
   evalBtn.textContent = '生成中…';
-  evalOutput.innerHTML = '<p class="text-slate-400 fade-in">正在准备模型…</p>';
-  const t0 = performance.now();
+  evalOutput.innerHTML = '<p class="text-slate-400">正在生成评价，通常需要 10–40 秒…</p>';
+  const t0 = Date.now();
+  const tick = setInterval(() => { evalMeta.textContent = '已用时 ' + Math.round((Date.now() - t0) / 1000) + ' 秒'; }, 1000);
   try {
-    const eng = await ensureEngine();
-    evalOutput.innerHTML = '<p class="text-slate-400">模型正在逐句评阅…</p>';
-    let acc = '';
-    const chunks = await eng.chat.completions.create({ messages: buildMessages(), stream: true, temperature: 0.5 });
-    for await (const c of chunks) {
-      const d = c.choices[0]?.delta?.content || '';
-      if (d) { acc += d; evalOutput.innerHTML = mdToHtml(acc); }
-    }
-    const dt = ((performance.now() - t0) / 1000).toFixed(0);
-    evalMeta.textContent = '模型 ' + engineModel.replace('-Instruct-q4f16_1-MLC','') + ' · 用时 ' + dt + ' 秒';
-    copyEvalBtn.classList.remove('hidden');
-    copyEvalBtn.onclick = () => { navigator.clipboard.writeText(acc); copyEvalBtn.textContent = '已复制'; setTimeout(()=>copyEvalBtn.textContent='复制评价',1500); };
+    log('调用评价接口：' + endpointIn.value.trim() + '  模型：' + modelIn.value.trim());
+    const res = await fetch(endpointIn.value.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + keyIn.value.trim() },
+      body: JSON.stringify({ model: modelIn.value.trim(), messages: buildMessages(), temperature: 0.4 })
+    });
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) {}
+    if (!res.ok) throw new Error(hintHttp(res.status, raw));
+    let text = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    text = String(text).trim();
+    if (!text) throw new Error('接口没返回评价内容：' + raw.slice(0, 200));
+    lastEval = text;
+    evalOutput.innerHTML = mdToHtml(text);
+    evalMeta.textContent = '模型 ' + modelIn.value.trim() + ' · 用时 ' + Math.round((Date.now() - t0) / 1000) + ' 秒';
+    $('copyEvalBtn').classList.remove('hidden');
+    log('评价完成，用时 ' + Math.round((Date.now() - t0) / 1000) + ' 秒');
   } catch (err) {
-    evalOutput.innerHTML = '<p class="text-rose-600">评价失败：' + (err.message || err) + '</p><p class="text-slate-400 text-xs mt-2">常见原因：首次下载模型中断（重试即可续传）、浏览器不支持 WebGPU（换电脑端 Chrome/Edge）、内存不足（换更小的模型）。</p>';
+    const msg = err && err.message ? err.message : String(err);
+    if (/Failed to fetch|NetworkError|TypeError/.test(msg)) {
+      evalOutput.innerHTML = '<p class="text-rose-600">评价失败：网络连不上接口。请先在上方点「检测连接」确认；若用的是智谱/本地 Ollama，注意它们可能不允许浏览器直连。</p>';
+      log('评价网络失败：' + msg);
+    } else {
+      evalOutput.innerHTML = '<p class="text-rose-600">评价失败：' + msg.replace(/</g, '&lt;') + '</p>';
+      log('评价失败：' + msg);
+    }
   } finally {
-    evaluating = false;
+    clearInterval(tick);
     evalBtn.disabled = false;
-    evalBtn.textContent = '生成评价';
+    evalBtn.textContent = old;
+    busy = false;
   }
 });
+
+$('copyEvalBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(lastEval).then(() => {
+    $('copyEvalBtn').textContent = '已复制';
+    setTimeout(() => $('copyEvalBtn').textContent = '复制评价', 1500);
+  });
+});
+
+function updateCounts() {
+  $('srcCount').textContent = srcText.value.length + ' 字';
+  $('tgtCount').textContent = transcript.value.length + ' 字';
+}
+srcText.addEventListener('input', updateCounts);
+transcript.addEventListener('input', updateCounts);
+updateCounts();
+
+$('copyLogBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(logEl.textContent);
+  $('copyLogBtn').textContent = '已复制';
+  setTimeout(() => $('copyLogBtn').textContent = '复制日志', 1500);
+});
+$('clearLogBtn').addEventListener('click', () => { logEl.textContent = ''; });
+
+window.addEventListener('error', e => log('页面错误：' + e.message));
+window.addEventListener('unhandledrejection', e => log('未捕获异常：' + ((e.reason && e.reason.message) || e.reason)));
 </script>
 </body>
 </html>
